@@ -30,7 +30,6 @@ router.get('/data', async (req, res) => {
     // 2. Validate JWT token and check expiration
     // Use a secret key for JWT verification (in production, use environment variable)
     const JWT_SECRET = process.env.JWT_SECRET || 'workshop_secret_key_2024';
-    
     const decoded = jwt.verify(token, JWT_SECRET);
     
     // JWT library automatically checks expiration, but we can also manually verify
@@ -42,11 +41,21 @@ router.get('/data', async (req, res) => {
       });
     }
 
+    const clientId = decoded.client_id;
+    const userFish = fishData.find(fish => fish.username === clientId);
+
+    if (!userFish) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: `No fish assigned to user: ${clientId}`
+      });
+    }
+
     res.json({
       success: true,
-      message: 'Access granted',
+      message: `Access granted for ${clientId}`,
       user: decoded,
-      data: fishData
+      fish: userFish
     });
 
   } catch (error) {
