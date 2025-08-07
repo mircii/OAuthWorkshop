@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 const router = express.Router();
 const redisClient = require('../redisClient');
 
@@ -20,24 +21,35 @@ router.post('/token', async (req, res) => {
       });
     }
 
-    // 2. Validate against oauth.txt file
-    const oauthFilePath = path.join(__dirname, '../oauth.txt');
-    const oauthData = fs.readFileSync(oauthFilePath, 'utf8');
-    const validClients = oauthData.trim().split('\n').map(line => {
-      const [id, secret] = line.split(':');
-      console.log(id, secret); // Debugging line to check client credentials
-      return { id, secret };
+    // 2. Validate against oauth_clients table in PostgreSQL
+    const pool = new Pool({
+      user: 'postgres',
+      host: 'localhost',
+      database: 'postgres',
+      password: 'sebi',
+      port: 5432,
     });
-    console.log(validClients); // Debugging line to check all valid clients
 
-    const validClient = validClients.find(client => 
-      client.id === clientId && client.secret === clientSecret
+    // Ensure table exists
+    await pool.query(`CREATE TABLE IF NOT EXISTS oauth_clients (
+      id SERIAL PRIMARY KEY,
+      client_id VARCHAR(255) UNIQUE NOT NULL,
+      client_secret VARCHAR(255) NOT NULL
+    );`);
+
+    // Check if client exists
+    const result = await pool.query(
+      'SELECT * FROM oauth_clients WHERE client_id = $1 AND client_secret = $2',
+      [clientId, clientSecret]
     );
 
+    
+    // Only return JWT if user exists in DB
     if (!validClient) {
+      await pool.end();
       return res.status(401).json({
         error: 'Invalid credentials',
-        message: 'Client ID and secret combination not found'
+        message: 'Client ID and secret combination not found in database'
       });
     }
 
@@ -64,6 +76,7 @@ router.post('/token', async (req, res) => {
       //expires_at: expiryTimestamp
     });
 
+    await pool.end();
   } catch (error) {
     console.error('Error in /oauth/token:', error);
     res.status(500).json({
