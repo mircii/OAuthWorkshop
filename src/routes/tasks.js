@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
+const fishData = require('../data/fishData')
 
 // JWT validation endpoint
 router.get('/data', (req, res) => {
@@ -31,18 +32,11 @@ router.get('/data', (req, res) => {
       });
     }
 
-    // 3. Return mock data if token is valid
-    const mockData = [
-      { id: 1, title: 'Complete OAuth implementation', status: 'pending' },
-      { id: 2, title: 'Implement JWT validation', status: 'in-progress' },
-      { id: 3, title: 'Create data endpoint', status: 'completed' }
-    ];
-
     res.json({
       success: true,
       message: 'Access granted',
       user: decoded,
-      data: mockData
+      data: fishData
     });
 
   } catch (error) {
