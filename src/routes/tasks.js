@@ -2,10 +2,12 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const fishData = require('../data/fishData')
+const redisClient = require('../redisClient');
 
 // JWT validation endpoint
-router.get('/data', (req, res) => {
+router.get('/data', async (req, res) => {
   try {
+
     // 1. Read JWT token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -16,6 +18,14 @@ router.get('/data', (req, res) => {
     }
 
     const token = authHeader.substring(7); 
+
+    const exists = await redisClient.exists(token);
+    if (!exists) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Token has expired or is invalidated'
+      });
+    }
 
     // 2. Validate JWT token and check expiration
     // Use a secret key for JWT verification (in production, use environment variable)

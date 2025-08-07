@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const router = express.Router();
+const redisClient = require('../redisClient');
 
 // OAuth token endpoint implementation
-router.post('/token', (req, res) => {
+router.post('/token', async (req, res) => {
   try {
     // 1. Read client_id and client_secret from request headers
     const clientId = req.headers['client-id'];
@@ -50,19 +51,17 @@ router.post('/token', (req, res) => {
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
     const token = jwt.sign(payload, jwtSecret);
 
-    // 4. Store JWT token in jwt.txt file with expiry timestamp
-    const expiryTimestamp = payload.exp;
-    const jwtFilePath = path.join(__dirname, '../jwt.txt');
-    const tokenEntry = `${token}:${expiryTimestamp}\n`;
-    
-    fs.appendFileSync(jwtFilePath, tokenEntry);
+    // 4. Store JWT token in redis with expiry times
+    await redisClient.set(token, JSON.stringify(payload), {EX: 60 });
+
 
     // Return the token
     res.json({
       access_token: token,
       token_type: 'Bearer',
-      expires_in: 60,
-      expires_at: expiryTimestamp
+      expires_in: 60
+      // Note: The expiree timestamp is currently not returned in the response,
+      //expires_at: expiryTimestamp
     });
 
   } catch (error) {
