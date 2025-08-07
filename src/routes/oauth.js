@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
+const { Sequelize, DataTypes } = require('sequelize');
 const router = express.Router();
 
 // OAuth token endpoint implementation
@@ -20,32 +20,47 @@ router.post('/token', async (req, res) => {
       });
     }
 
-    // 2. Validate against oauth_clients table in PostgreSQL
-    const pool = new Pool({
-      user: 'postgres',
+    // 2. Validate against oauth_clients table using Sequelize
+    const sequelize = new Sequelize('postgres', 'postgres', 'sebi', {
       host: 'localhost',
-      database: 'postgres',
-      password: 'sebi',
+      dialect: 'postgres',
       port: 5432,
+      logging: false,
     });
 
-    // Ensure table exists
-    await pool.query(`CREATE TABLE IF NOT EXISTS oauth_clients (
-      id SERIAL PRIMARY KEY,
-      client_id VARCHAR(255) UNIQUE NOT NULL,
-      client_secret VARCHAR(255) NOT NULL
-    );`);
+    const OAuthClient = sequelize.define('oauth_clients', {
+      id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true,
+      },
+      client_id: {
+        type: DataTypes.STRING,
+        unique: true,
+        allowNull: false,
+      },
+      client_secret: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+    }, {
+      timestamps: false,
+      freezeTableName: true,
+    });
+
+    await OAuthClient.sync();
 
     // Check if client exists
-    const result = await pool.query(
-      'SELECT * FROM oauth_clients WHERE client_id = $1 AND client_secret = $2',
-      [clientId, clientSecret]
-    );
+    const validClient = await OAuthClient.findOne({
+      where: {
+        client_id: clientId,
+        client_secret: clientSecret
+      }
+    });
 
-    
     // Only return JWT if user exists in DB
     if (!validClient) {
-      await pool.end();
+      await sequelize.close();
       return res.status(401).json({
         error: 'Invalid credentials',
         message: 'Client ID and secret combination not found in database'
@@ -76,7 +91,7 @@ router.post('/token', async (req, res) => {
       expires_at: expiryTimestamp
     });
 
-    await pool.end();
+    await sequelize.close();
   } catch (error) {
     console.error('Error in /oauth/token:', error);
     res.status(500).json({
