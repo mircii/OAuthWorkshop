@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Sequelize, DataTypes } = require('sequelize');
 const router = express.Router();
+const redisClient = require('../redisClient');
 
 // OAuth token endpoint implementation
 router.post('/token', async (req, res) => {
@@ -77,18 +78,17 @@ router.post('/token', async (req, res) => {
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
     const token = jwt.sign(payload, jwtSecret);
 
-    // 4. Store JWT token in jwt.txt file with expiry timestamp
-    const expiryTimestamp = payload.exp;
-    const jwtFilePath = path.join(__dirname, '../jwt.txt');
-    const tokenEntry = `${token}:${expiryTimestamp}\n`;
-    fs.appendFileSync(jwtFilePath, tokenEntry);
+    // 4. Store JWT token in redis with expiry times
+    await redisClient.set(token, JSON.stringify(payload), {EX: 60 });
+
 
     // Return the token
     res.json({
       access_token: token,
       token_type: 'Bearer',
-      expires_in: 60,
-      expires_at: expiryTimestamp
+      expires_in: 60
+      // Note: The expiree timestamp is currently not returned in the response,
+      //expires_at: expiryTimestamp
     });
 
     await sequelize.close();

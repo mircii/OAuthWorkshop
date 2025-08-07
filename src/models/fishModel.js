@@ -1,11 +1,12 @@
 class Fish {
-  constructor(id, name, species, habitat, sizeCm, endangered) {
-    this.id = id;                   // Unique identifier
-    this.name = name;               // Common name
-    this.species = species;         // Scientific name
-    this.habitat = habitat;         // Ocean, river, freshwater, etc.
-    this.sizeCm = sizeCm;           // Average size in cm
-    this.endangered = endangered;   // Boolean flag
+  constructor(id, name, species, habitat, sizeCm, endangered, username) {
+    this.id = id;
+    this.name = name;
+    this.species = species;
+    this.habitat = habitat;
+    this.sizeCm = sizeCm;
+    this.endangered = endangered;
+    this.username = username;
   }
 }
 
