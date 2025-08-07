@@ -1,27 +1,77 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 
-// TODO: Implement OAuth token endpoint
-// Requirements:
-// 1. Read client_id and client_secret from request headers
-// 2. Validate against oauth.txt file (one client per line)
-// 3. Generate JWT token with 1-minute expiration
-// 4. Store token in jwt.txt file with expiry timestamp
+// OAuth token endpoint implementation
 router.post('/token', (req, res) => {
-  res.status(501).json({ 
-    error: 'Not implemented - TODO for students',
-    hint: 'Implement OAuth client credentials flow',
-    requirements: [
-      'Read client_id and client_secret from headers',
-      'Validate against oauth.txt file (one client per line)',
-      'Generate JWT token (1 minute expiration)',
-      'Store token in jwt.txt with expiry timestamp'
-    ],
-    fileFormats: {
-      'oauth.txt': 'client_id:client_secret (one per line)',
-      'jwt.txt': 'jwt_token:expiry_timestamp (one per line)'
+  try {
+    // 1. Read client_id and client_secret from request headers
+    const clientId = req.headers['client-id'];
+    const clientSecret = req.headers['client-secret'];
+    console.log(`Received client_id: ${clientId}, client_secret: ${clientSecret}`); // Debugging line
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        error: 'Missing credentials',
+        message: 'client-id and client-secret headers are required'
+      });
     }
-  });
+
+    // 2. Validate against oauth.txt file
+    const oauthFilePath = path.join(__dirname, '../oauth.txt');
+    const oauthData = fs.readFileSync(oauthFilePath, 'utf8');
+    const validClients = oauthData.trim().split('\n').map(line => {
+      const [id, secret] = line.split(':');
+      console.log(id, secret); // Debugging line to check client credentials
+      return { id, secret };
+    });
+    console.log(validClients); // Debugging line to check all valid clients
+
+    const validClient = validClients.find(client => 
+      client.id === clientId && client.secret === clientSecret
+    );
+
+    if (!validClient) {
+      return res.status(401).json({
+        error: 'Invalid credentials',
+        message: 'Client ID and secret combination not found'
+      });
+    }
+
+    // 3. Generate JWT token with 1-minute expiration
+    const payload = {
+      client_id: clientId,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60 // 1 minute expiration
+    };
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+    const token = jwt.sign(payload, jwtSecret);
+
+    // 4. Store JWT token in jwt.txt file with expiry timestamp
+    const expiryTimestamp = payload.exp;
+    const jwtFilePath = path.join(__dirname, '../jwt.txt');
+    const tokenEntry = `${token}:${expiryTimestamp}\n`;
+    
+    fs.appendFileSync(jwtFilePath, tokenEntry);
+
+    // Return the token
+    res.json({
+      access_token: token,
+      token_type: 'Bearer',
+      expires_in: 60,
+      expires_at: expiryTimestamp
+    });
+
+  } catch (error) {
+    console.error('Error in /oauth/token:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to generate token'
+    });
+  }
 });
 
 module.exports = router; 
